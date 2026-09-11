@@ -1,5 +1,5 @@
 import { Context } from 'telegraf';
-import { registerUser } '../services/api';
+import { registerUser } from '../services/api';
 import { setSession } from '../services/sessions';
 
 export const registerCommand = async (ctx: Context) => {

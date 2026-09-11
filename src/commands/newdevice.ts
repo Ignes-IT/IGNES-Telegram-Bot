@@ -1,6 +1,6 @@
 import { Context } from 'telegraf';
-import { getSession } from '../services/api';
-import { createDevice } from '../services/sessions';
+import { getSession } from '../services/sessions';
+import { createDevice } from '../services/api';
 
 export const newDeviceCommand = async (ctx: Context) => {
     const session = getSession(ctx.from!.id);
@@ -14,7 +14,7 @@ export const newDeviceCommand = async (ctx: Context) => {
     try {
         const data = await createDevice(session.token, name);
         await ctx.reply(
-            `✅ Device created!\n` +
+            `Device created!\n` +
             `ID: \`${data.deviceId}\`\n` +
             `Public key: \`${data.publicKey}\`\n\n` +
             `Get config: /getconfig ${data.deviceId}`,

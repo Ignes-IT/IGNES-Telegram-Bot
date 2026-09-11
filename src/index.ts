@@ -15,9 +15,11 @@ bot.command('login', loginCommand);
 bot.command('newdevice', newDeviceCommand);
 bot.command('getconfig', getConfigCommand);
 
-bot.launch().then(() => {
-    console.log(' Bot started');
+bot.telegram.getMe().then((botInfo) => {
+  console.log(`🤖 Bot started: @${botInfo.username}`);
 });
+
+bot.launch();
 
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
