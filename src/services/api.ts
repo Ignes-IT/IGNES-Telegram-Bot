@@ -22,6 +22,14 @@ export interface DeviceResponse {
   publicKey: string;
 }
 
+export interface DeviceListItem {
+  id: string;
+  name: string;
+  publicKey: string;
+  ipAddress: string | null;
+  createdAt: string;
+}
+
 export const registerUser = async (email: string, password: string): Promise<AuthResponse> => {
   const { data } = await api.post<AuthResponse>('/api/auth/register', { email, password });
   return data;
@@ -41,7 +49,24 @@ export const createDevice = async (token: string, name: string): Promise<DeviceR
   return data;
 };
 
-export const getConfig = async (deviceId: string): Promise<string> => {
-  const { data } = await api.get<string>(`/api/vpn/config/${deviceId}`);
+export const getDevices = async (token: string): Promise<DeviceListItem[]> => {
+  const { data } = await api.get<{ devices: DeviceListItem[] }>('/api/devices', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return data.devices;
+};
+
+export const deleteDevice = async (token: string, deviceId: string): Promise<void> => {
+  await api.delete(`/api/devices/${deviceId}`, {
+    headers: { Authorization: `Bearer ${token}`},
+  });
+};
+
+export const getConfig = async (token: string, deviceId: string): Promise<string> => {
+  const { data } = await api.get<string>(
+    `/api/vpn/config/${deviceId}`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
   return data;
 };
+

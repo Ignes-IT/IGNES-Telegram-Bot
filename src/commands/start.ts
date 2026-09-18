@@ -8,6 +8,7 @@ export const startCommand = async (ctx: Context) => {
         '/login — log in to an existing account\n' +
         '/devices — list of devices\n' +
         '/newdevice — create a new device\n' +
+        '/deletedevice <id> — delete device by ID\n' + 
         '/logout — log out'
     )
 }
