@@ -4,9 +4,10 @@
   "description": "Telegram bot for IGNES VPN platform",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-    "build": "tsc",
-    "start": "node dist/index.js"
+  "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+  "typecheck": "tsc --noEmit",
+  "build": "tsc",
+  "start": "node dist/index.js"
   },
   "keywords": ["ignes", "vpn", "telegram", "bot"],
   "author": "Ignes IT",

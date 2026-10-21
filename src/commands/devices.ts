@@ -1,47 +1,43 @@
-import { Context } from 'telegraf';
-import { getSession, clearSession } from '../services/sessions';
+import { Context, Markup } from 'telegraf';
+import { getSession } from '../services/sessions';
 import { getDevices } from '../services/api';
+import { escapeHtml } from '../ui/format';
+import { devicesKeyboard } from '../ui/menus';
+import { handleApiError } from '../middleware/error';
 
-export async function devicesCommand(ctx: Context) {
-  const telegramId = ctx.from?.id;
-  if (!telegramId) return;
-
-  const session = getSession(telegramId);
-  if (!session) {
-    return ctx.reply('First, log in: /login');
+export async function devicesCommand(ctx: Context): Promise<void> {
+  const id = ctx.from?.id;
+  if (!id) return;
+  const s = getSession(id);
+  if (!s) {
+    await ctx.reply('🔒 Log in first: /login email password');
+    return;
   }
 
   try {
-    const devices = await getDevices(session.token);
+    const devices = await getDevices(s.token);
 
     if (devices.length === 0) {
-      return ctx.reply('Device list is empty.\nCreate one: /newdevice');
+      await ctx.reply('📭 You dont have any devices yet.', {
+        reply_markup: Markup.inlineKeyboard([
+          [Markup.button.callback('➕ Create', 'menu:create')],
+          [Markup.button.callback('⬅️ Menu', 'menu:back')],
+        ]).reply_markup,
+      });
+      return;
     }
 
     const lines = devices.map((d, i) => {
-      const created = new Date(d.createdAt).toLocaleDateString('en-US');
       const ip = d.ipAddress ?? '—';
-      return [
-        `${i + 1}. ${d.name}`,
-        `   ID: \`${d.id}\``,
-        `   IP: ${ip}`,
-        `   Created: ${created}`,
-      ].join('\n');
+      return `${i + 1}. <b>${escapeHtml(d.name)}</b>\n   <code>${ip}</code> · <code>${d.id.slice(0, 8)}…</code>`;
     });
 
     await ctx.reply(
-      `Your devices (${devices.length}):\n\n${lines.join('\n\n')}`,
-      { parse_mode: 'Markdown' }
+      `📱 <b>Your devices (${devices.length}):</b>\n\n${lines.join('\n\n')}\n\n` +
+        `📥 — download .conf, 🗑 — remove.`,
+      { parse_mode: 'HTML', reply_markup: devicesKeyboard(devices).reply_markup }
     );
   } catch (err: any) {
-    const status = err?.response?.status;
-    console.error('devices command error:', status, err?.message);
-
-    if (status === 401) {
-      clearSession(telegramId);
-      return ctx.reply('Session expired. Please log in again: /login');
-    }
-
-    return ctx.reply('Failed to get device list.');
+    await handleApiError(ctx, err);
   }
 }

@@ -1,40 +1,39 @@
-import { Context } from 'telegraf'; 
-import { getSession, clearSession } from '../services/sessions';
+import { Context } from 'telegraf';
+import { getSession } from '../services/sessions';
 import { deleteDevice } from '../services/api';
+import { handleApiError } from '../middleware/error';
 
-export async function deleteDeviceCommand(ctx: Context) {
-    const telegramId = ctx.from?.id;
-    if (!telegramId) return;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-    const session = getSession(telegramId);
-    if (!session) {
-        return ctx.reply('First, log in: /login');
-    }
+export async function deleteDeviceCommand(ctx: Context): Promise<void> {
+  const id = ctx.from?.id;
+  if (!id) return;
+  const s = getSession(id);
+  if (!s) {
+    await ctx.reply('🔒 Log in first: /login email password');
+    return;
+  }
 
-    const text = (ctx.message as any)?.text ?? '';
-    const parts = text.split(/\s+/).slice(1);
-    const deviceId = parts[0];
+  const text = (ctx.message as any)?.text ?? '';
+  const deviceId = text.split(/\s+/).slice(1)[0];
 
+  if (!deviceId) {
+    await ctx.reply(
+      'To delete a device, open /devices and click the 🗑 next to the desired one.\n\n' + 
+      'Direct command (legacy): /deletedevice <id>'
+    );
+    return;
+  }
 
-    if (!deviceId) {
-        return ctx.reply('Usage: /deletedevice <id>\n\nSee IDs: /devices');
-    }
+  if (!UUID_RE.test(deviceId)) {
+    await ctx.reply('❌ Invalid ID format (expected UUID)).');
+    return;
+  }
 
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(deviceId)) {
-        return ctx.reply('Invalid device ID.')
-    }
-
-    try {
-        await deleteDevice(session.token, deviceId);
-        return ctx.reply('Device deleted.\n\nSee list: /devices')
-    } catch (err: any) {
-        const status = err?.response?.status;
-        console.error('deletedevice command error:', status, err?.message);
-
-        if (status === 404) {
-            return ctx.reply('Device not found (or not yours).');
-        }
-        return ctx.reply('Failed to delete device.');
-    }
+  try {
+    await deleteDevice(s.token, deviceId);
+    await ctx.reply('✅ Device removed.\n\nList: /devices');
+  } catch (err: any) {
+    await handleApiError(ctx, err);
+  }
 }

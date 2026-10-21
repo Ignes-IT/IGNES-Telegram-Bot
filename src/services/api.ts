@@ -70,3 +70,41 @@ export const getConfig = async (token: string, deviceId: string): Promise<string
   return data;
 };
 
+export interface MeResponse {
+  id: number;
+  email: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  role: string;
+  isActive: boolean;
+  createdAt: string;
+  telegramId?: string | null;
+}
+
+export interface SubscriptionResponse {
+  id?: string;
+  plan: string;
+  status: string;
+  startDate?: string;
+  endDate?: string | null;
+  autoRenew?: boolean;
+}
+
+export const getMe = async (token: string): Promise<MeResponse> => {
+  const { data } = await api.get<any>('/api/auth/me', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return (data.user || data) as MeResponse;
+};
+
+export const getSubscription = async ( token: string): Promise<SubscriptionResponse | null> => {
+  try {
+    const { data } = await api.get<SubscriptionResponse>('/api/subscriptions/me', {
+      headers: { Authorization: `Bearer ${token}` }, 
+    });
+    return data;
+  } catch (err: any) {
+    if (err?.response?.status === 404) return null;
+    throw err;
+  }
+};

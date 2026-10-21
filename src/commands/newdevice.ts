@@ -1,27 +1,43 @@
 import { Context } from 'telegraf';
-import { getSession } from '../services/sessions';
-import { createDevice } from '../services/api';
+import { getSession, setPending } from '../services/sessions';
+import { getDevices, getSubscription } from '../services/api';
+import { getPlanLimit } from '../config/plans';
+import { handleApiError } from '../middleware/error';
 
-export const newDeviceCommand = async (ctx: Context) => {
-    const session = getSession(ctx.from!.id);
-    if (!session) {
-        await ctx.reply('First, log in with the /login command.');
-        return;
+export async function newDeviceCommand(ctx: Context): Promise<void> {
+  const id = ctx.from?.id;
+  if (!id) return;
+  const s = getSession(id);
+  if (!s) {
+    await ctx.reply('🔒 Log in first: /login email password');
+    return;
+  }
+
+  try {
+    const [devices, sub] = await Promise.all([
+      getDevices(s.token),
+      getSubscription(s.token).catch(() => null),
+    ]);
+    const plan = sub?.plan ?? 'FREE';
+    const limit = getPlanLimit(plan);
+
+    if (devices.length >= limit) {
+      await ctx.reply(
+        `⛔ <b>Device limit:</b> ${devices.length}/${limit} (plan ${plan}).\n\n` +
+          `Remove device (/devices) or upgrade plan.`,
+        { parse_mode: 'HTML' }
+      );
+      return;
     }
 
-    const name = 'Device ' + new Date().toLocaleString();
-
-    try {
-        const data = await createDevice(session.token, name);
-        await ctx.reply(
-            `Device created!\n` +
-            `ID: \`${data.deviceId}\`\n` +
-            `Public key: \`${data.publicKey}\`\n\n` +
-            `Get config: /getconfig ${data.deviceId}`,
-            { parse_mode: 'Markdown' }
-        );
-    } catch (error: any) {
-        const msg = error?.response?.data?.message || error.message || 'Unknown Error';
-        await ctx.reply(` Error: ${msg}`);
-    }
-};
+    setPending(id, { type: 'deviceName' });
+    await ctx.reply(
+      '➕ <b>Create Device</b>\n\n' +
+        'Submit a name (eg: "iPhone", "Work Laptop").\n' +
+        'or /cancel for cancel.',
+      { parse_mode: 'HTML' }
+    );
+  } catch (err: any) {
+    await handleApiError(ctx, err);
+  }
+}
