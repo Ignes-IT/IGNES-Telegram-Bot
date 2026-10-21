@@ -58,7 +58,7 @@ export const getDevices = async (token: string): Promise<DeviceListItem[]> => {
 
 export const deleteDevice = async (token: string, deviceId: string): Promise<void> => {
   await api.delete(`/api/devices/${deviceId}`, {
-    headers: { Authorization: `Bearer ${token}`},
+    headers: { Authorization: `Bearer ${token}` },
   });
 };
 
@@ -97,14 +97,23 @@ export const getMe = async (token: string): Promise<MeResponse> => {
   return (data.user || data) as MeResponse;
 };
 
-export const getSubscription = async ( token: string): Promise<SubscriptionResponse | null> => {
+export const getSubscription = async (token: string): Promise<SubscriptionResponse | null> => {
   try {
-    const { data } = await api.get<SubscriptionResponse>('/api/subscriptions/me', {
-      headers: { Authorization: `Bearer ${token}` }, 
+    const { data } = await api.get<any>('/api/subscriptions/me', {
+      headers: { Authorization: `Bearer ${token}` },
     });
-    return data;
+    return (data.subscription || data) as SubscriptionResponse;
   } catch (err: any) {
     if (err?.response?.status === 404) return null;
     throw err;
   }
+};
+
+export const mockUpgrade = async (token: string) => {
+  const { data } = await api.post(
+    '/api/subscriptions/mock-upgrade',
+    {},
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  return data;
 };

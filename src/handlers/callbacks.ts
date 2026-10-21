@@ -1,7 +1,7 @@
 import { Context, Markup } from 'telegraf';
 import { getSession, clearSession, setPending } from '../services/sessions';
-import { getDevices, getConfig, deleteDevice, getSubscription, } from '../services/api';
-import { mainMenu, devicesKeyboard, confirmDeleteKeyboard, } from '../ui/menus';
+import { getDevices, getConfig, deleteDevice, getSubscription, mockUpgrade, getMe } from '../services/api';
+import { mainMenu, devicesKeyboard, confirmDeleteKeyboard } from '../ui/menus';
 import { escapeHtml, truncate } from '../ui/format';
 import { getPlanLimit } from '../config/plans';
 import { handleApiError } from '../middleware/error';
@@ -101,12 +101,13 @@ async function showStatus(ctx: Context): Promise<void> {
     ];
     if (endDate) lines.push(`📅 <b>Valid until:</b> ${endDate}`);
     if (plan === 'FREE') {
-      lines.push('', '💡 Want more devices? Sign up for a trial in your personal account.');
+      lines.push('', '💡 Want more devices? Tap 💳 Subscription in the menu.');
     }
 
     await safeEdit(ctx, lines.join('\n'), {
       parse_mode: 'HTML',
       reply_markup: Markup.inlineKeyboard([
+        [Markup.button.callback('💳 Subscription', 'menu:subscription')],
         [Markup.button.callback('📱 Devices', 'menu:devices')],
         [Markup.button.callback('⬅️ Menu', 'menu:back')],
       ]).reply_markup,
@@ -126,10 +127,10 @@ async function showWhoami(ctx: Context): Promise<void> {
   }
 
   try {
-    const me = await require('../services/api').getMe(s.token);
+    const me = await getMe(s.token);
     const created = me.createdAt
-  ? new Date(me.createdAt).toLocaleDateString('ru-RU')
-  : '—';
+      ? new Date(me.createdAt).toLocaleDateString('ru-RU')
+      : '—';
 
     await safeEdit(
       ctx,
@@ -188,6 +189,43 @@ async function showHelp(ctx: Context): Promise<void> {
   );
 }
 
+async function showSubscription(ctx: Context): Promise<void> {
+  const id = ctx.from?.id;
+  if (!id) return;
+  const s = getSession(id);
+  if (!s) {
+    await safeEdit(ctx, '🔒 Log in first: /login');
+    return;
+  }
+
+  try {
+    await mockUpgrade(s.token);
+    const sub = await getSubscription(s.token);
+
+    const plan = sub?.plan ?? 'PRO';
+    const limit = getPlanLimit(plan);
+    const endDate = sub?.endDate
+      ? new Date(sub.endDate).toLocaleDateString('ru-RU')
+      : 'unlimited';
+
+    await safeEdit(
+      ctx,
+      [
+        '✅ <b>Plan upgraded!</b>',
+        '',
+        `📋 <b>Plan:</b> ${plan}`,
+        `📦 <b>Device limit:</b> ${limit}`,
+        `📅 <b>Valid until:</b> ${endDate}`,
+        '',
+        '<i>Test mode — no payment was charged.</i>',
+      ].join('\n'),
+      { parse_mode: 'HTML', reply_markup: mainMenu().reply_markup }
+    );
+  } catch (err: any) {
+    await handleApiError(ctx, err);
+  }
+}
+
 async function startCreate(ctx: Context): Promise<void> {
   const id = ctx.from?.id;
   if (!id) return;
@@ -210,7 +248,13 @@ async function startCreate(ctx: Context): Promise<void> {
         ctx,
         `⛔ <b>Device limit:</b> ${devices.length}/${limit} (plan ${plan}).\n\n` +
           `Delete device (🗑 in /devices) or upgrade plan.`,
-        { parse_mode: 'HTML', reply_markup: mainMenu().reply_markup }
+        {
+          parse_mode: 'HTML',
+          reply_markup: Markup.inlineKeyboard([
+            [Markup.button.callback('💳 Subscription', 'menu:subscription')],
+            [Markup.button.callback('⬅️ Menu', 'menu:back')],
+          ]).reply_markup,
+        }
       );
       return;
     }
@@ -296,7 +340,7 @@ async function performDelete(ctx: Context, deviceId: string): Promise<void> {
     );
   } catch (err: any) {
     if (err?.response?.status === 404) {
-      await safeEdit(ctx, '❓ Device not found (may have already been deleted)).', {
+      await safeEdit(ctx, '❓ Device not found (may have already been deleted).', {
         reply_markup: mainMenu().reply_markup,
       });
       return;
@@ -331,6 +375,8 @@ export async function callbackHandler(ctx: Context): Promise<void> {
           return await startCreate(ctx);
         case 'status':
           return await showStatus(ctx);
+        case 'subscription':
+          return await showSubscription(ctx);
         case 'whoami':
           return await showWhoami(ctx);
         case 'help':

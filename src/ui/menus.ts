@@ -10,9 +10,10 @@ export const mainMenu = () =>
       Markup.button.callback('📊 Status', 'menu:status'),
     ],
     [
+      Markup.button.callback('💳 Subscription', 'menu:subscription'),
       Markup.button.callback('👤 Profile', 'menu:whoami'),
-      Markup.button.callback('❓ Help', 'menu:help'),
     ],
+    [Markup.button.callback('❓ Help', 'menu:help')],
   ]);
 
 export const backToMenu = () =>
@@ -33,3 +34,4 @@ export const confirmDeleteKeyboard = (deviceId: string) =>
     [Markup.button.callback('🗑 Yes, delete', `dev:${deviceId}:delete`)],
     [Markup.button.callback('⬅️ Cancel', 'menu:devices')],
   ]);
+
