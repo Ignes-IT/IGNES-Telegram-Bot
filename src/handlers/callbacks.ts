@@ -1,10 +1,11 @@
 import { Context, Markup } from 'telegraf';
 import { getSession, clearSession, setPending } from '../services/sessions';
-import { getDevices, getConfig, deleteDevice, getSubscription, mockUpgrade, getMe } from '../services/api';
+import { getDevices, getConfig, deleteDevice, deleteUser, getSubscription, mockUpgrade, getMe } from '../services/api';
 import { mainMenu, devicesKeyboard, confirmDeleteKeyboard } from '../ui/menus';
 import { escapeHtml, truncate } from '../ui/format';
 import { getPlanLimit } from '../config/plans';
 import { handleApiError } from '../middleware/error';
+import { deleteUserCommand } from '../commands/deleteuser';
 
 async function safeEdit(ctx: Context, text: string, extra: any = {}): Promise<void> {
   try {
@@ -45,10 +46,12 @@ async function showDevices(ctx: Context): Promise<void> {
 
   try {
     const devices = await getDevices(s.token);
+    
     if (devices.length === 0) {
       await safeEdit(ctx, '📭 You dont have any devices yet.', {
         reply_markup: Markup.inlineKeyboard([
           [Markup.button.callback('➕ Create', 'menu:create')],
+          [Markup.button.callback('🗑 Delete account', 'user:show_delete')],
           [Markup.button.callback('⬅️ Menu', 'menu:back')],
         ]).reply_markup,
       });
@@ -147,6 +150,7 @@ async function showWhoami(ctx: Context): Promise<void> {
       {
         parse_mode: 'HTML',
         reply_markup: Markup.inlineKeyboard([
+          [Markup.button.callback('🗑 Delete account', 'user:show_delete')],
           [Markup.button.callback('🚪 Logout', 'menu:logout')],
           [Markup.button.callback('⬅️ Menu', 'menu:back')],
         ]).reply_markup,
@@ -358,6 +362,64 @@ async function logoutUser(ctx: Context): Promise<void> {
   });
 }
 
+async function performUserDelete(ctx: Context): Promise<void> {
+  const id = ctx.from?.id;
+  if (!id) return;
+  const s = getSession(id);
+  if (!s) {
+    await safeEdit(ctx, '🔒 Session expired. /login');
+    return;
+  }
+
+  await safeEdit(ctx, '⏳ Deleting devices and account…');
+
+  try {
+    const devices = await getDevices(s.token);
+
+    for (const device of devices) {
+      try {
+        await deleteDevice(s.token, device.id);
+      } catch (err: any) {
+        await safeEdit(
+          ctx,
+          `❌ Failed to remove device "<b>${escapeHtml(device.name)}</b>".\n\n` +
+            `Account <b>NOT</b> deleted. Retry: /deleteuser`,
+          { parse_mode: 'HTML', reply_markup: mainMenu().reply_markup },
+        );
+        return;
+      }
+    }
+
+    await deleteUser(s.token);
+    clearSession(id);
+
+    await safeEdit(
+      ctx,
+      '✅ <b>Account deleted.</b>\n\nYou can register again: /register',
+      { parse_mode: 'HTML' },
+    );
+  } catch (err: any) {
+    if (err?.response?.status === 409) {
+      await safeEdit(
+        ctx,
+        '⚠️ <b>New device appeared while deleting.</b>\n\nRetry: /deleteuser',
+        { parse_mode: 'HTML', reply_markup: mainMenu().reply_markup },
+      );
+      return;
+    }
+    await handleApiError(ctx, err);
+  }
+}
+
+async function cancelUserDelete(ctx: Context): Promise<void> {
+  await safeEdit(
+    ctx,
+    '❌ <b>Account deletion cancelled.</b>',
+    { parse_mode: 'HTML', reply_markup: mainMenu().reply_markup },
+  );
+}
+
+
 export async function callbackHandler(ctx: Context): Promise<void> {
   try {
     const data = (ctx.callbackQuery as any)?.data as string | undefined;
@@ -395,6 +457,14 @@ export async function callbackHandler(ctx: Context): Promise<void> {
       if (action === 'confirm_delete') return await confirmDelete(ctx, deviceId);
       if (action === 'delete') return await performDelete(ctx, deviceId);
     }
+
+    if (ns === 'user') {
+      if (rest[0] === 'show_delete') return await deleteUserCommand(ctx);
+      if (rest[0] === 'confirm_delete') return await performUserDelete(ctx);
+      if (rest[0] === 'cancel_delete') return await cancelUserDelete(ctx);
+      return;
+    }
+
   } catch (err: any) {
     console.error('callback error:', err);
   } finally {

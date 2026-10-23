@@ -117,3 +117,9 @@ export const mockUpgrade = async (token: string) => {
   );
   return data;
 };
+
+export const deleteUser = async (token: string): Promise<void> => {
+  await api.delete('/api/auth/me', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+};
